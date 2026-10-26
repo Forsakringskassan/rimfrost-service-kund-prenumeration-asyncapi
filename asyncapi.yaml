@@ -1,0 +1,118 @@
+asyncapi: 3.0.0
+
+info:
+  title: Kund-prenumeration Async API
+  version: 0.1.0
+  description: |-
+    Async API för prenumeration på förändringar i kundcentrerat data.
+
+    Regler (t.ex. kompletteringsregler) kan prenumerera på förändringar för specifika
+    kunder (identifierade med idtyp + idvärde) och meddelas via Kafka när kundcentrerat
+    data uppdateras av en extern källa. Prenumeranten anger ett eget replyTo-topic dit
+    notifikationer skickas.
+
+channels:
+  kund.subscribe:
+    address: kund.subscribe
+    messages:
+      KundSubscribeRequest:
+        $ref: '#/components/messages/KundSubscribeRequest'
+
+  kund.unsubscribe:
+    address: kund.unsubscribe
+    messages:
+      KundUnsubscribeRequest:
+        $ref: '#/components/messages/KundUnsubscribeRequest'
+
+operations:
+  subscribeKund:
+    action: receive
+    channel:
+      $ref: '#/channels/kund.subscribe'
+    messages:
+      - $ref: '#/channels/kund.subscribe/messages/KundSubscribeRequest'
+    summary: Registrerar en prenumeration på förändringar i kundcentrerat data för en specifik kund
+
+  unsubscribeKund:
+    action: receive
+    channel:
+      $ref: '#/channels/kund.unsubscribe'
+    messages:
+      - $ref: '#/channels/kund.unsubscribe/messages/KundUnsubscribeRequest'
+    summary: Avregistrerar en befintlig prenumeration på förändringar i kundcentrerat data
+
+components:
+  messages:
+    KundSubscribeRequest:
+      payload:
+        $ref: '#/components/schemas/KundSubscribeRequest'
+
+    KundUnsubscribeRequest:
+      payload:
+        $ref: '#/components/schemas/KundUnsubscribeRequest'
+
+  schemas:
+    KundSubscribeRequest:
+      type: object
+      title: KundSubscribeRequest
+      description: Registrerar en prenumeration på förändringar i kundcentrerat data för en specifik kund. När data förändras skickas ett KundChangedEvent till det angivna replyTo-topic.
+      required:
+        - prenumerationId
+        - kund
+        - replyTo
+      properties:
+        prenumerationId:
+          type: string
+          format: uuid
+          description: Klient-valt ID som kopplar ihop subscribe och unsubscribe. Returneras oförändrat i KundChangedEvent.
+        kund:
+          $ref: '#/components/schemas/Idtyp'
+          description: Identifierar kunden vars kundcentrerat data prenumeranten vill bevaka
+        replyTo:
+          type: string
+          description: Kafka-topic dit events av typen KundChangedEvent skickas när kundcentrerat data förändras
+
+    KundUnsubscribeRequest:
+      type: object
+      title: KundUnsubscribeRequest
+      description: Avregistrerar en befintlig prenumeration. Inga fler KundChangedEvent skickas för det angivna prenumerationId.
+      required:
+        - prenumerationId
+      properties:
+        prenumerationId:
+          type: string
+          format: uuid
+          description: Det klient-valda ID som angavs vid subscribe
+
+    KundChangedEvent:
+      type: object
+      title: KundChangedEvent
+      description: Indikerar att kundcentrerat data har förändrats för den angivna kunden. Eventet innehåller inte det uppdaterade datat — prenumeranten ansvarar för att hämta aktuell information via lämpligt gränssnitt.
+      required:
+        - prenumerationId
+        - kund
+      properties:
+        prenumerationId:
+          type: string
+          format: uuid
+          description: Det klient-valda ID som angavs vid subscribe
+        kund:
+          $ref: '#/components/schemas/Idtyp'
+          description: Identifierar kunden vars kundcentrerat data har förändrats
+
+    Idtyp:
+      type: object
+      title: Idtyp
+      required:
+        - typId
+        - varde
+      properties:
+        typId:
+          type: string
+          description: Unikt ID som identifierar vilken typ av värde som anges
+        varde:
+          type: string
+          description: ID-värde som identifieras av typ
+      example:
+        typId: "4c34906c-03d9-425f-9a1a-062ef6eb88c7"
+        varde: "19901010-1234"
